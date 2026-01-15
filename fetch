@@ -1,0 +1,27 @@
+#!/bin/bash
+# llmfetch - like r.jina.ai but faster
+#
+# Usage:
+#   ./fetch example.com                     # Returns clean markdown
+#   ./fetch https://stripe.com/docs         # Works with full URLs too
+#   ./fetch example.com json                # JSON output with metadata
+#   ./fetch example.com --max-tokens 500    # Limit tokens
+#   ./fetch example.com --grep "API"        # Filter content
+#   ./fetch example.com --select "article"  # CSS selector
+
+URL="$1"
+shift
+
+# Add https:// if no protocol
+if [[ ! "$URL" =~ ^https?:// ]]; then
+  URL="https://$URL"
+fi
+
+# If second arg is "json", convert to --format json
+if [[ "$1" == "json" ]]; then
+  shift
+  set -- --format json "$@"
+fi
+
+# Filter out defuddle debug messages
+ssh llmfetch "cd /opt/llmfetch && node dist/index.js '$URL' $*" 2>/dev/null | grep -v "^Initial parse"

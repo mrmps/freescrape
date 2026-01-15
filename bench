@@ -1,0 +1,26 @@
+#!/bin/bash
+# Remote benchmark wrapper
+# Usage:
+#   ./bench                    # Run 10k benchmark
+#   ./bench 100k               # Run 100k benchmark
+#   ./bench report             # Show report
+#   ./bench deploy             # Deploy latest code
+
+case "$1" in
+  report)
+    ssh llmfetch "cd /opt/llmfetch && npm run benchmark:report -- --db results.db"
+    ;;
+  deploy)
+    echo "Deploying..."
+    ssh llmfetch "cd /opt/llmfetch && git pull && npm install && npm run build"
+    echo "Done!"
+    ;;
+  100k)
+    echo "Running 100k benchmark on remote server..."
+    ssh llmfetch "cd /opt/llmfetch && npm run benchmark -- --urls data/urls-100k.txt --db results.db --parallel 100"
+    ;;
+  *)
+    echo "Running 10k benchmark on remote server..."
+    ssh llmfetch "cd /opt/llmfetch && npm run benchmark -- --urls data/urls-10k.txt --db results.db --parallel 100"
+    ;;
+esac

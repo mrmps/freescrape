@@ -11,6 +11,14 @@ import { createInterface } from "node:readline";
 import Database from "better-sqlite3";
 import { fetchAndParse } from "../lib/fetch.js";
 
+// Suppress unhandled errors from happy-dom and other async code
+process.on("uncaughtException", (err) => {
+  console.error(`\n[uncaughtException] ${err.message}`);
+});
+process.on("unhandledRejection", (reason) => {
+  console.error(`\n[unhandledRejection] ${reason}`);
+});
+
 interface BenchmarkOptions {
   urlsFile: string;
   dbFile: string;
