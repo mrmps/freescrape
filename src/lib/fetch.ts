@@ -11,6 +11,7 @@ export interface FetchOptions {
   timeout?: number;
   useCache?: boolean;
   debug?: boolean;
+  skipTier1?: boolean; // Skip happy-dom for faster benchmarking
 }
 
 export interface FetchResult {
@@ -35,7 +36,7 @@ export async function fetchAndParse(
   url: string,
   options: FetchOptions = {}
 ): Promise<FetchResult> {
-  const { timeout = 10000, debug = false } = options;
+  const { timeout = 10000, debug = false, skipTier1 = false } = options;
   const startTime = Date.now();
 
   // Normalize URL
@@ -115,6 +116,18 @@ export async function fetchAndParse(
 
     // Check if we need JavaScript
     if (needsJavaScript(html, extracted?.content ?? null)) {
+      // Skip Tier 1 for fast benchmarking
+      if (skipTier1) {
+        return {
+          url,
+          tier: 0,
+          cached: false,
+          latencyMs: Date.now() - startTime,
+          error: "NEEDS_JS",
+          reason: "spa_skipped",
+        };
+      }
+
       if (debug) {
         console.error(`[debug] Escalating to Tier 1 (happy-dom)`);
       }
