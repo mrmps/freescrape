@@ -10,13 +10,13 @@ All 7 must be met to exit:
 
 | # | Criteria | Target | Current | Status |
 |---|----------|--------|---------|--------|
-| 1 | Success Rate | ≥80% on 10K URLs | not_measured | [ ] |
-| 2 | Throughput | ≥50 URLs/sec | not_measured | [ ] |
-| 3 | Latency p95 | ≤2000ms | not_measured | [ ] |
-| 4 | Latency p50 | ≤500ms | not_measured | [ ] |
-| 5 | Content Quality (title) | ≥90% have title | not_measured | [ ] |
-| 6 | Content Quality (words) | ≥90% have >100 words | not_measured | [ ] |
-| 7 | Memory | <4GB during benchmark | not_measured | [ ] |
+| 1 | Success Rate | ≥80% on 10K URLs | 2.9% | [ ] |
+| 2 | Throughput | ≥50 URLs/sec | ~10 | [ ] |
+| 3 | Latency p95 | ≤2000ms | 4913ms | [ ] |
+| 4 | Latency p50 | ≤500ms | 2529ms | [ ] |
+| 5 | Content Quality (title) | ≥90% have title | 96.6% | [x] |
+| 6 | Content Quality (words) | ≥90% have >100 words | 75.9% | [ ] |
+| 7 | Memory | <4GB during benchmark | ~1.4GB | [x] |
 | 8 | Tests | All pass | 9/9 passing | [x] |
 
 ## How to Measure
@@ -45,13 +45,23 @@ ssh llmfetch "cd /opt/llmfetch && npm run benchmark:report -- --db results.db"
 
 | Date | Success% | URLs/sec | p95 | p50 | Memory | Notes |
 |------|----------|----------|-----|-----|--------|-------|
-| TBD | TBD | TBD | TBD | TBD | TBD | First run |
+| 2025-01-15 | 2.9% | ~10 | 4913ms | 2529ms | ~1.4GB | Baseline - 96% errors (759 timeouts, 158 DNS) |
 
-## Known Issues to Investigate
+## Known Issues from Baseline
 
-1. Defuddle throws CSS selector errors on some sites
-2. happy-dom XMLHttpRequest errors from third-party scripts
-3. Need to verify results are being written to SQLite correctly
+From first 1000 URLs:
+- **759 timeouts (76%)** - 10s timeout too short OR network issues
+- **158 DNS errors (16%)** - many Tranco URLs are dead/parked domains
+- **20 SSL errors** - sites with bad certs
+- **12 no_content** - extraction returning empty
+- **p50 latency 2529ms** - way too slow (target: 500ms)
+- **Success rate 2.9%** - target is 80%
+
+Root causes to investigate:
+1. Timeout handling - maybe increase to 15-30s?
+2. URL list quality - filter out dead domains?
+3. DNS resolution speed
+4. Connection pooling / HTTP client efficiency
 
 ## Iteration Loop
 
