@@ -1,0 +1,48 @@
+{
+  "name": "llmfetch",
+  "version": "0.1.0",
+  "description": "Fast web-to-markdown CLI for LLMs",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "llmfetch": "dist/index.js"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "benchmark": "tsx src/benchmark/runner.ts",
+    "benchmark:report": "tsx src/benchmark/report.ts",
+    "lint": "eslint src --ext .ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "scraper",
+    "markdown",
+    "llm",
+    "web",
+    "fetch"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.0",
+    "vitest": "^2.0.0"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.0.0",
+    "cheerio": "^1.0.0",
+    "commander": "^12.0.0",
+    "defuddle": "^0.6.0",
+    "happy-dom": "^15.0.0",
+    "undici": "^6.0.0"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}

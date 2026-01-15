@@ -1,10 +1,41 @@
 # llmfetch - Ralph Fix Plan
 
 ## Project Goal
-Build a web-to-markdown API that works reliably on 80%+ of the web, knows when to give up, and can prove it with benchmarks.
+Build a web-to-markdown API that works reliably on 80%+ of the web, knows when to give up, and can prove it with benchmarks on 1M URLs.
 
-## Core Principle
-**THE BENCHMARK IS THE PRODUCT.** We don't ship until we hit targets on 1M URLs.
+## Core Principles
+1. **THE BENCHMARK IS THE PRODUCT.** Don't ship until targets hit.
+2. **NEVER FETCH FROM LOCAL MACHINE.** All web requests on remote server only.
+3. **SPEED AT SCALE.** Process 1M URLs in <24 hours.
+
+## GitHub Repo
+```
+https://github.com/mrmps/freescrape
+```
+
+## Remote Server (ALL FETCHING HAPPENS HERE)
+```
+Host: ubuntu-8gb-hel1-1
+IPv4: 65.108.57.35
+IPv6: 2a01:4f9:c013:6b6e::/64
+Specs: 8GB RAM, Hetzner Helsinki
+```
+
+## Development Workflow
+```
+LOCAL (laptop):
+├── Write code
+├── Unit tests only (mocked HTML, NO real fetches)
+├── git push
+
+REMOTE (65.108.57.35):
+├── git pull
+├── Integration tests (real fetches)
+├── Benchmarks (1M URLs)
+├── Results stored in SQLite
+
+⚠️ NEVER fetch real URLs from laptop - your IP will get banned
+```
 
 ## Target Metrics
 ```
@@ -15,6 +46,48 @@ Blocked (give up):        ≤5% of attempts
 False escalations:        ≤2% (escalated but still failed)
 p95 latency:              ≤500ms
 Content quality:          ≥95% have title + >100 words
+```
+
+## Scale Targets (1M URLs) - THIS IS A BENCHMARK
+```
+Throughput:               ≥100 URLs/sec sustained (target)
+Total time for 1M:        <3 hours (stretch), <6 hours (target), <12 hours (acceptable)
+Memory usage:             <4GB (leave headroom on 8GB server)
+Concurrent connections:   100-200
+
+THROUGHPUT IS A KEY METRIC - we compete on speed
+```
+
+## Benchmark Leaderboard (track over time)
+```
+Run ID    | Date       | URLs/sec | Success% | Time for 1M
+----------|------------|----------|----------|------------
+baseline  | TBD        | TBD      | TBD      | TBD
+```
+
+## Scale Optimizations
+```
+1. HTTP Client
+   - Use undici (Node's fastest HTTP client)
+   - Connection pooling (keep-alive)
+   - HTTP/2 where supported
+   - DNS caching
+
+2. Parallelism
+   - 100-200 concurrent requests
+   - Batch processing (chunks of 1000 URLs)
+   - Stream results to SQLite (don't hold in memory)
+
+3. Memory
+   - Process URLs in batches, not all at once
+   - Stream HTML parsing (don't load full DOM if possible)
+   - Worker threads for Tier 1 (isolated memory)
+   - Periodic GC hints
+
+4. Rate Limiting (per domain)
+   - Max 2 requests/sec per domain
+   - Spread requests across domains
+   - Avoid hammering single sites
 ```
 
 ## Stack
@@ -94,20 +167,43 @@ Content quality:          ≥95% have title + >100 words
 
 ---
 
-## Phase 0: Benchmark Infrastructure (DO THIS FIRST)
+## Phase 0: Server Setup (DO THIS FIRST)
 
-### 0.1 Get URL dataset
+### 0.0 Setup remote server
+- [ ] SSH into server: `ssh root@65.108.57.35`
+- [ ] Install Node.js 22: `curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt-get install -y nodejs`
+- [ ] Install build tools: `apt-get install -y build-essential python3`
+- [ ] Clone repo: `git clone https://github.com/mrmps/freescrape.git /opt/llmfetch`
+- [ ] Setup deploy script for easy updates
+
+**Deploy script** (save as `/opt/llmfetch/deploy.sh`):
+```bash
+#!/bin/bash
+cd /opt/llmfetch
+git pull origin main
+npm install
+npm run build
+echo "Deployed at $(date)"
+```
+
+**Success**: Can SSH in and run `node --version` shows v22+
+
+---
+
+## Phase 1: Benchmark Infrastructure
+
+### 1.1 Get URL dataset (run locally, no fetching)
 - [ ] Download Tranco Top 1M list (https://tranco-list.eu/)
-- [ ] Create script to sample 10K URLs for dev, 100K for CI, 1M for full
-- [ ] Categorize URLs: docs, blogs, news, ecommerce, spa, api, other
-- [ ] Store in data/urls.txt and data/urls-categorized.jsonl
+- [ ] Create script to sample: 10K (dev), 100K (CI), 1M (full)
+- [ ] Store in data/urls-10k.txt, data/urls-100k.txt, data/urls-1m.txt
+- [ ] Commit to git, push to GitHub
 
-**Success**: Have 1M URLs in data/ directory
+**Success**: URL files exist in repo
 
-### 0.2 Create benchmark runner
+### 1.2 Create benchmark runner
 - [ ] Create src/benchmark/runner.ts
-- [ ] Input: list of URLs
-- [ ] Output: SQLite database with results per URL
+- [ ] Input: URL list file
+- [ ] Output: SQLite database with results
 - [ ] Schema:
   ```sql
   CREATE TABLE results (
@@ -122,12 +218,20 @@ Content quality:          ≥95% have title + >100 words
     timestamp INTEGER
   );
   ```
-- [ ] Run with concurrency limit (--parallel 50)
-- [ ] Resume from where we left off (skip already-tested URLs)
+- [ ] Concurrency: --parallel 100 (default)
+- [ ] Resume support: skip already-tested URLs
+- [ ] Progress logging: URLs/sec, ETA, memory usage
 
-**Success**: `npm run benchmark -- --urls data/urls-10k.txt --db results.db`
+**Run on REMOTE server only**:
+```bash
+ssh root@65.108.57.35
+cd /opt/llmfetch
+npm run benchmark -- --urls data/urls-10k.txt --db results-10k.db --parallel 100
+```
 
-### 0.3 Create benchmark reporter
+**Success**: Benchmark runs on remote, writes results.db
+
+### 1.3 Create benchmark reporter
 - [ ] Create src/benchmark/report.ts
 - [ ] Read results database
 - [ ] Output summary:
@@ -163,7 +267,7 @@ Content quality:          ≥95% have title + >100 words
 
 **Success**: `npm run benchmark:report -- --db results.db`
 
-### 0.4 Create CI benchmark job
+### 1.4 Create CI benchmark job
 - [ ] Add GitHub Action that runs benchmark on 10K URLs
 - [ ] Fail CI if success rate drops below 75%
 - [ ] Store results as artifact
@@ -173,9 +277,9 @@ Content quality:          ≥95% have title + >100 words
 
 ---
 
-## Phase 1: Project Setup
+## Phase 2: Project Setup
 
-### 1.1 Initialize Node project
+### 2.1 Initialize Node project
 - [ ] Create package.json with type: "module"
 - [ ] Add TypeScript with strict mode
 - [ ] Add scripts: dev, build, test, benchmark, benchmark:report
@@ -183,7 +287,7 @@ Content quality:          ≥95% have title + >100 words
 
 **Success**: `npm run build` works
 
-### 1.2 Create directory structure
+### 2.2 Create directory structure
 - [ ] src/index.ts (CLI)
 - [ ] src/lib/fetch.ts
 - [ ] src/lib/parse.ts
@@ -198,7 +302,7 @@ Content quality:          ≥95% have title + >100 words
 
 **Success**: All files exist
 
-### 1.3 Unit test setup
+### 2.3 Unit test setup
 - [ ] Install vitest
 - [ ] Create test/parse.test.ts
 - [ ] Create test/detect.test.ts
@@ -206,9 +310,9 @@ Content quality:          ≥95% have title + >100 words
 
 ---
 
-## Phase 2: Block Detection (THE KEY DIFFERENTIATOR)
+## Phase 3: Block Detection (THE KEY DIFFERENTIATOR)
 
-### 2.1 HTTP response analysis
+### 3.1 HTTP response analysis
 - [ ] Create analyzeResponse(status, headers, html): BlockResult | null
 - [ ] Detect by status code:
   - 403 → {blocked: true, reason: "forbidden"}
@@ -219,7 +323,7 @@ Content quality:          ≥95% have title + >100 words
   - x-amz-cf-id → CloudFront
   - server: AkamaiGHost → Akamai
 
-### 2.2 HTML content analysis
+### 3.2 HTML content analysis
 - [ ] Create detectBlockPage(html): BlockResult | null
 - [ ] Cloudflare patterns:
   - "Just a moment..." title
@@ -238,7 +342,7 @@ Content quality:          ≥95% have title + >100 words
 
 **Test**: Unit tests with real block page HTML samples
 
-### 2.3 SPA detection (for escalation, NOT blocking)
+### 3.3 SPA detection (for escalation, NOT blocking)
 - [ ] Create needsJavaScript(html, extractedContent): boolean
 - [ ] True if:
   - extractedContent is empty AND
@@ -261,15 +365,15 @@ expect(needsJavaScript(staticHtml, "content")).toBe(false)
 
 ---
 
-## Phase 3: Core Fetch (Tier 0)
+## Phase 4: Core Fetch (Tier 0)
 
-### 3.1 HTTP fetch with timeout
+### 4.1 HTTP fetch with timeout
 - [ ] Create fetchUrl(url, options): Promise<FetchResult>
 - [ ] Options: timeout (default 10s), headers, followRedirects
 - [ ] Handle: network errors, DNS errors, SSL errors, timeouts
 - [ ] Return: {html, status, headers, latencyMs} or {error, reason}
 
-### 3.2 Content extraction with Defuddle
+### 4.2 Content extraction with Defuddle
 - [ ] Install defuddle: `npm install defuddle`
 - [ ] Create extractContent(html, url): ExtractResult | null
 - [ ] Use Defuddle with `markdown: true` option for direct MD output
@@ -285,7 +389,7 @@ expect(result.title).toBeDefined();
 expect(result.parseTime).toBeLessThan(100); // ms
 ```
 
-### 3.3 Wire together with block detection
+### 4.3 Wire together with block detection
 - [ ] Create fetchAndParse(url): Promise<Result>
 - [ ] Flow:
   1. fetchUrl()
@@ -298,11 +402,11 @@ expect(result.parseTime).toBeLessThan(100); // ms
 
 ---
 
-## Phase 4: Tier 1 - happy-dom (Worker Isolated)
+## Phase 5: Tier 1 - happy-dom (Worker Isolated)
 
 **CRITICAL**: happy-dom leaks memory. MUST run in isolated worker thread.
 
-### 4.1 Create worker thread for JS execution
+### 5.1 Create worker thread for JS execution
 - [ ] Create src/lib/happydom-worker.ts (runs in Worker)
 - [ ] Create src/lib/happydom.ts (main thread interface)
 - [ ] Worker receives: {html, url, timeout}
@@ -344,14 +448,14 @@ parentPort?.on('message', async ({ html, url, timeout }) => {
 });
 ```
 
-### 4.2 Worker pool manager
+### 5.2 Worker pool manager
 - [ ] Create WorkerPool class in src/lib/happydom.ts
 - [ ] Pool size: 1-4 workers (configurable)
 - [ ] Round-robin or least-busy assignment
 - [ ] Auto-restart workers that die
 - [ ] Graceful shutdown on process exit
 
-### 4.3 Integrate with pipeline
+### 5.3 Integrate with pipeline
 - [ ] When needsJavaScript() returns true, call workerPool.execute(html, url)
 - [ ] Re-run Defuddle extractContent() on result
 - [ ] If still empty → return {blocked: true, reason: "spa_failed"}
@@ -360,28 +464,28 @@ parentPort?.on('message', async ({ html, url, timeout }) => {
 
 ---
 
-## Phase 5: CLI Interface
+## Phase 6: CLI Interface
 
-### 5.1 Basic CLI
+### 6.1 Basic CLI
 - [ ] Parse args: llmfetch <url> [options]
 - [ ] Options: --format (md|json|text), --timeout, --no-cache
 - [ ] Output markdown to stdout, errors to stderr
 
-### 5.2 Filtering options
+### 6.2 Filtering options
 - [ ] --max-tokens <n>: truncate at token limit
 - [ ] --grep <pattern>: filter to matching sections
 - [ ] --select <selector>: extract specific elements
 
-### 5.3 Batch mode
+### 6.3 Batch mode
 - [ ] Read URLs from stdin or @file.txt
 - [ ] --parallel <n>: concurrent requests
 - [ ] Output JSONL
 
 ---
 
-## Phase 6: Caching
+## Phase 7: Caching
 
-### 6.1 SQLite cache
+### 7.1 SQLite cache
 - [ ] Cache successful responses by URL hash
 - [ ] TTL: 5 minutes default, configurable
 - [ ] --no-cache to bypass

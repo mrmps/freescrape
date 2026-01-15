@@ -3,8 +3,24 @@
 ## What You're Building
 **llmfetch** - A CLI that fetches URLs and returns clean markdown for LLMs. Must work on 80%+ of the web and know when to give up.
 
-## Core Principle
-**THE BENCHMARK IS THE PRODUCT.** Build the test infrastructure first. Don't ship until you hit targets.
+## Core Principles
+1. **THE BENCHMARK IS THE PRODUCT.** Don't ship until targets hit on 1M URLs.
+2. **NEVER FETCH FROM LOCAL.** All web requests run on remote server (65.108.57.35) only.
+3. **SPEED IS A FEATURE.** Throughput (URLs/sec) is a key competitive metric.
+
+## Remote Server (ALL FETCHING HERE)
+```
+Host: 65.108.57.35 (Hetzner Helsinki, 8GB RAM)
+Repo: /opt/llmfetch
+
+# Deploy code
+ssh root@65.108.57.35 "cd /opt/llmfetch && git pull && npm install && npm run build"
+
+# Run benchmark
+ssh root@65.108.57.35 "cd /opt/llmfetch && npm run benchmark -- --urls data/urls-10k.txt --parallel 100"
+```
+
+⚠️ **NEVER run real URL fetches from laptop - your IP will get banned from the entire internet**
 
 ## Stack (DO NOT CHANGE)
 - **Runtime**: Node.js 22+ (NOT Bun - it has bugs)
@@ -37,6 +53,7 @@ Tier 0 usage:     ≥90%
 Tier 1 usage:     ≤8%
 Blocked:          ≤5%
 p95 latency:      ≤500ms
+Throughput:       ≥100 URLs/sec (1M in <3 hours)
 ```
 
 ## How To Work
