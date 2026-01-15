@@ -172,10 +172,15 @@ async function runBenchmark(options: BenchmarkOptions) {
     );
   };
 
-  // Process URLs in parallel batches
+  // Process URLs in parallel batches with delay to avoid rate limiting
   for (let i = 0; i < urls.length; i += options.parallel) {
     const batch = urls.slice(i, i + options.parallel);
     await processBatch(batch);
+
+    // Add delay between batches to avoid rate limiting (200ms per batch)
+    if (i + options.parallel < urls.length) {
+      await new Promise((r) => setTimeout(r, 200));
+    }
   }
 
   console.log("\n");
