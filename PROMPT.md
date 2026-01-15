@@ -7,7 +7,7 @@
 1. **THE BENCHMARK IS THE PRODUCT.** Don't ship until targets hit on 1M URLs.
 2. **NEVER FETCH FROM LOCAL.** All web requests run on remote server (65.108.57.35) only.
 3. **SPEED IS A FEATURE.** Throughput (URLs/sec) is a key competitive metric.
-
+  
 ## Remote Server (ALL FETCHING HERE)
 ```
 Host: 65.108.57.35 (Hetzner Helsinki, 8GB RAM)
@@ -53,7 +53,7 @@ Tier 0 usage:     ≥90%
 Tier 1 usage:     ≤8%
 Blocked:          ≤5%
 p95 latency:      ≤500ms
-Throughput:       ≥100 URLs/sec (1M in <3 hours)
+Throughput:       ≥1000 URLs/sec (1M in <.3 hours)
 ```
 
 ## How To Work
@@ -73,16 +73,15 @@ When implementing block detection, search for:
 - "PerimeterX block page detection"
 - "DataDome challenge response"
 
-When implementing parsing, search for:
-- "Mozilla Readability best practices"
-- "turndown configuration options"
-- "linkedom vs jsdom performance"
+When implementing parsing, always use the fastest lib--should be faster than readability if possible.
+
+DO NOT USE JSDOM! Use linkedom or something faster if possible--don't be afraid to benchmark tools!
 
 When getting benchmark URLs, search for:
 - "Tranco top 1 million websites download"
 - "Common Crawl URL list"
 
-## File Structure
+## File Structure (flexible, editable)
 ```
 src/
   index.ts              # CLI entry
@@ -91,7 +90,7 @@ src/
     parse.ts            # HTML → markdown
     detect.ts           # Block detection
     escalate.ts         # Tier decisions
-    happydom.ts         # Tier 1 JS execution
+    dom-tool.ts         # Tier 1 JS execution
     cache.ts            # SQLite cache
   benchmark/
     runner.ts           # Run benchmark on URL list

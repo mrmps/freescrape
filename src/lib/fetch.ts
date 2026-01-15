@@ -7,6 +7,13 @@ import { extractContent } from "./parse.js";
 import { analyzeResponse, detectBlockPage, needsJavaScript } from "./detect.js";
 import { executeJs } from "./happydom.js";
 
+// Create an abort signal that times out
+function createTimeoutSignal(ms: number): AbortSignal {
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), ms);
+  return controller.signal;
+}
+
 export interface FetchOptions {
   timeout?: number;
   useCache?: boolean;
@@ -36,7 +43,7 @@ export async function fetchAndParse(
   url: string,
   options: FetchOptions = {}
 ): Promise<FetchResult> {
-  const { timeout = 10000, debug = false, skipTier1 = false } = options;
+  const { timeout = 5000, debug = false, skipTier1 = false } = options; // 5s default for speed
   const startTime = Date.now();
 
   // Normalize URL
@@ -45,7 +52,8 @@ export async function fetchAndParse(
   }
 
   try {
-    // Tier 0: Simple HTTP fetch
+    // Tier 0: Simple HTTP fetch with strict timeout
+    const signal = createTimeoutSignal(timeout);
     const response = await request(url, {
       method: "GET",
       headers: {
@@ -56,6 +64,7 @@ export async function fetchAndParse(
       maxRedirections: 5,
       headersTimeout: timeout,
       bodyTimeout: timeout,
+      signal,
     });
 
     const html = await response.body.text();
@@ -177,13 +186,16 @@ export async function fetchAndParse(
 
     // Classify the error
     let reason = "unknown";
-    if (error.message?.includes("ETIMEDOUT") || error.message?.includes("timeout")) {
+    const msg = error.message || String(error);
+    if (error.name === "AbortError" || msg.includes("aborted") || msg.includes("ETIMEDOUT") || msg.includes("timeout")) {
       reason = "timeout";
-    } else if (error.message?.includes("ENOTFOUND")) {
+    } else if (msg.includes("ENOTFOUND")) {
       reason = "dns_error";
-    } else if (error.message?.includes("ECONNREFUSED")) {
+    } else if (msg.includes("ECONNREFUSED")) {
       reason = "connection_refused";
-    } else if (error.message?.includes("certificate")) {
+    } else if (msg.includes("ECONNRESET")) {
+      reason = "connection_reset";
+    } else if (msg.includes("certificate") || msg.includes("SSL") || msg.includes("TLS")) {
       reason = "ssl_error";
     }
 

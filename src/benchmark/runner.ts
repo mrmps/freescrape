@@ -117,8 +117,8 @@ async function runBenchmark(options: BenchmarkOptions) {
     const results = await Promise.all(
       batch.map(async (url) => {
         try {
-          // Skip Tier 1 (happy-dom) for fast benchmarking - Tier 0 only
-          return await fetchAndParse(url, { timeout: 10000, skipTier1: true });
+          // Skip Tier 1 (happy-dom) for fast benchmarking - Tier 0 only, 5s timeout
+          return await fetchAndParse(url, { timeout: 5000, skipTier1: true });
         } catch (err) {
           return {
             url,
