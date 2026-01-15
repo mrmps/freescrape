@@ -5,6 +5,11 @@
  *   npm run benchmark -- --urls data/urls-10k.txt --db results.db --parallel 100
  */
 
+import { requireVPS } from "../lib/safeguard.js";
+
+// Block external fetches if running locally (not on VPS)
+requireVPS();
+
 import { parseArgs } from "node:util";
 import { createReadStream } from "node:fs";
 import { createInterface } from "node:readline";

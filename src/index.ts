@@ -9,6 +9,11 @@
  *   llmfetch @urls.txt --parallel 10  Batch fetch from file
  */
 
+import { requireVPS } from "./lib/safeguard.js";
+
+// Block external fetches if running locally (not on VPS)
+requireVPS();
+
 import { Command } from "commander";
 import { fetchAndParse } from "./lib/fetch.js";
 import { version } from "./version.js";
