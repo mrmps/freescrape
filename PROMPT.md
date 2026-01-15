@@ -1,156 +1,133 @@
-# Ralph Development Instructions - llmfetch
+# llmfetch - Ralph Development Instructions
 
 ## What You're Building
-**llmfetch** - A CLI that fetches URLs and returns clean markdown for LLMs. Must work on 80%+ of the web and know when to give up.
 
-## Core Principles
-1. **THE BENCHMARK IS THE PRODUCT.** Don't ship until targets hit on 1M URLs.
-2. **NEVER FETCH FROM LOCAL.** All web requests run on remote server (65.108.57.35) only.
-3. **SPEED IS A FEATURE.** Throughput (URLs/sec) is a key competitive metric.
-  
-## Remote Server (ALL FETCHING HERE)
+**llmfetch** - A CLI/API that fetches any URL and returns clean markdown optimized for LLMs.
+
+Goal: **Best web-to-markdown tool on the planet.** Fast, reliable, knows when to give up.
+
+## Success Criteria (ALL MUST BE MET TO EXIT)
+
+These are the ONLY things that matter. Everything else is up to you.
+
+### 1. Benchmark Success Rate
 ```
-Host: 65.108.57.35 (Hetzner Helsinki, 8GB RAM)
-Repo: /opt/llmfetch
-
-# Deploy code
-ssh root@65.108.57.35 "cd /opt/llmfetch && git pull && npm install && npm run build"
-
-# Run benchmark
-ssh root@65.108.57.35 "cd /opt/llmfetch && npm run benchmark -- --urls data/urls-10k.txt --parallel 100"
+Target: ≥80% success rate on 10K diverse URLs
+Measurement: npm run benchmark:report -- --db results.db
+Verify: "Success: X,XXX (≥80.0%)"
 ```
 
-⚠️ **NEVER run real URL fetches from laptop - your IP will get banned from the entire internet**
-
-## Stack (DO NOT CHANGE)
-- **Runtime**: Node.js 22+ (NOT Bun - it has bugs)
-- **Language**: TypeScript strict
-- **Content Extraction**: Defuddle (NOT Readability - it's slow and abandoned)
-- **HTML Parsing**: Cheerio (fastest, no memory leaks)
-- **JS Execution**: happy-dom in Worker thread (MUST isolate - it leaks memory)
-- **Cache/DB**: better-sqlite3
-- **Testing**: vitest
-
-### Why This Stack
-- **Defuddle** > Readability: Modern, built for LLMs, includes markdown conversion, actively maintained
-- **Cheerio** > jsdom/linkedom: 8-12x faster, zero memory leaks
-- **Worker isolation**: happy-dom crashes after ~80 test suites from memory leaks; isolate in worker, kill after 100 requests
-
-## Architecture: 2 Tiers + Block Detection
-
+### 2. Throughput
 ```
-URL → Block Check → Tier 0 Fetch → Got Content? → SUCCESS
-                                  → Empty? → Block Page? → BLOCKED (don't escalate)
-                                           → SPA? → Tier 1 (happy-dom) → SUCCESS or BLOCKED
+Target: ≥50 URLs/second sustained
+Measurement: Benchmark output shows "XX.X URLs/sec"
+Verify: Rate ≥50.0 during 10K URL run
 ```
 
-**Key insight**: If we detect a block page (Cloudflare, CAPTCHA, 403), we DO NOT escalate. We return BLOCKED immediately.
-
-## Target Metrics
+### 3. Latency
 ```
-Success rate:     ≥80%
-Tier 0 usage:     ≥90%
-Tier 1 usage:     ≤8%
-Blocked:          ≤5%
-p95 latency:      ≤500ms
-Throughput:       ≥1000 URLs/sec (1M in <.3 hours)
+Target: p95 ≤ 2000ms, p50 ≤ 500ms
+Measurement: npm run benchmark:report shows latency stats
+Verify: p95 and p50 within targets
 ```
 
-## How To Work
-
-1. **Phase 0 FIRST**: Build benchmark infrastructure before features
-2. **Use web search**: When you need to find block page patterns, WAF signatures, or best practices, USE THE WEB SEARCH TOOL
-3. Work through @fix_plan.md in order
-4. After each task: test, mark [x], commit
-5. Run benchmark frequently to measure progress
-
-## Research Tasks (USE WEB SEARCH)
-
-When implementing block detection, search for:
-- "Cloudflare challenge page HTML example"
-- "Akamai bot detection HTML patterns"
-- "How to detect CAPTCHA page"
-- "PerimeterX block page detection"
-- "DataDome challenge response"
-
-When implementing parsing, always use the fastest lib--should be faster than readability if possible.
-
-DO NOT USE JSDOM! Use linkedom or something faster if possible--don't be afraid to benchmark tools!
-
-When getting benchmark URLs, search for:
-- "Tranco top 1 million websites download"
-- "Common Crawl URL list"
-
-## File Structure (flexible, editable)
+### 4. Block Detection Accuracy
 ```
-src/
-  index.ts              # CLI entry
-  lib/
-    fetch.ts            # HTTP fetch
-    parse.ts            # HTML → markdown
-    detect.ts           # Block detection
-    escalate.ts         # Tier decisions
-    dom-tool.ts         # Tier 1 JS execution
-    cache.ts            # SQLite cache
-  benchmark/
-    runner.ts           # Run benchmark on URL list
-    report.ts           # Generate metrics report
-data/
-  urls-10k.txt          # Dev sample
-  urls-100k.txt         # CI sample
-  urls-1m.txt           # Full benchmark
-test/
-  fixtures/
-    block-pages/        # Real block page HTML samples
-  *.test.ts
+Target: Correctly identify ≥90% of block pages (Cloudflare, CAPTCHA, WAF)
+Measurement: Test suite with real block page HTML samples
+Verify: npm test passes with block detection tests
 ```
 
-## Block Detection (THE KEY DIFFERENTIATOR)
+### 5. Content Quality
+```
+Target: ≥90% of successful extractions have title AND >100 words
+Measurement: npm run benchmark:report shows content quality stats
+Verify: "Has title: ≥90%" and ">100 words: ≥90%"
+```
 
-Collect REAL HTML samples of block pages. Search the web for examples. Store in test/fixtures/block-pages/.
+### 6. Memory Stability
+```
+Target: Memory usage stays <4GB during 10K URL benchmark
+Measurement: Benchmark progress output shows "Mem: XXX MB"
+Verify: Never exceeds 4000MB during run
+```
 
-Detect and return BLOCKED (never escalate) for:
-- Cloudflare challenge ("Just a moment...", "Checking your browser")
-- CAPTCHA pages (recaptcha, hcaptcha)
-- WAF blocks (Akamai, AWS WAF, PerimeterX, DataDome)
-- HTTP 403, 429, 503
-- "Access Denied", "Bot detected" pages
+### 7. All Tests Pass
+```
+Target: npm test exits with code 0
+Measurement: Run npm test
+Verify: All tests pass, no failures
+```
 
-## Benchmark Commands
+## Verification Command
+
+Run this on remote server to verify all criteria:
+```bash
+ssh llmfetch "cd /opt/llmfetch && npm test && npm run benchmark -- --urls data/urls-10k.txt --db verify.db --parallel 100 && npm run benchmark:report -- --db verify.db"
+```
+
+Check output for:
+- Success rate ≥80%
+- URLs/sec ≥50
+- p95 ≤2000ms, p50 ≤500ms
+- Has title ≥90%
+- >100 words ≥90%
+- Memory stayed <4GB
+- All tests passed
+
+## Hard Constraints
+
+### 1. NEVER fetch from local machine
+All HTTP requests to external URLs MUST run on the remote server. Your local IP will get banned.
 
 ```bash
-# Run on 10K URLs
-npm run benchmark -- --urls data/urls-10k.txt --db results.db --parallel 50
+# Deploy code
+ssh llmfetch "cd /opt/llmfetch && git pull && npm install && npm run build"
 
-# Generate report
-npm run benchmark:report -- --db results.db
-
-# Compare to baseline
-npm run benchmark:report -- --db results.db --compare baseline.db
+# Run benchmarks
+ssh llmfetch "cd /opt/llmfetch && npm run benchmark -- --urls data/urls-10k.txt --db results.db --parallel 100"
 ```
 
-## 🎯 Status Reporting (REQUIRED)
+### 2. Remote Server
+```
+Host: 65.108.57.35 (SSH alias: llmfetch)
+Path: /opt/llmfetch
+Specs: 8GB RAM, Hetzner Helsinki
+```
+
+## Everything Else Is Up To You
+
+- **Language**: TypeScript, Rust, Go, Python - whatever achieves the targets
+- **Libraries**: Choose what works. Benchmark if unsure.
+- **Architecture**: Design what makes sense
+- **Approach**: Rewrite everything if needed
+
+If the current approach isn't hitting targets, throw it away and try something else. Only the success criteria matter.
+
+## Research
+
+Use web search to find:
+- Best practices for web scraping at scale
+- Block page detection patterns (Cloudflare, Akamai, PerimeterX, DataDome)
+- Fast HTML-to-markdown libraries (benchmark them!)
+- Memory-efficient parsing
+- How r.jina.ai, trafilatura, newspaper3k solve these problems
+
+## Status Reporting
 
 End EVERY response with:
 
 ```
 ---RALPH_STATUS---
-STATUS: IN_PROGRESS | COMPLETE | BLOCKED
-TASKS_COMPLETED_THIS_LOOP: <number>
-FILES_MODIFIED: <number>
-TESTS_STATUS: PASSING | FAILING | NOT_RUN
-BENCHMARK_SUCCESS_RATE: <percentage or "not_run">
-WORK_TYPE: IMPLEMENTATION | TESTING | RESEARCH | BENCHMARK
-EXIT_SIGNAL: false | true
-RECOMMENDATION: <next action>
+SUCCESS_RATE: <percentage or "not_measured">
+THROUGHPUT: <urls/sec or "not_measured">
+P95_LATENCY: <ms or "not_measured">
+MEMORY_PEAK: <mb or "not_measured">
+TESTS: PASS | FAIL | NOT_RUN
+CRITERIA_MET: <number>/7
+EXIT_READY: true | false
+NEXT_ACTION: <what you'll do next>
 ---END_RALPH_STATUS---
 ```
 
-### Set EXIT_SIGNAL: true when:
-- All phases in @fix_plan.md complete
-- `npm test` passes
-- Benchmark success rate ≥75% on 10K URLs
-- Block detection correctly identifies Cloudflare/CAPTCHA
-
-## Current Task
-Start with Phase 0: Benchmark Infrastructure. This is the foundation.
+Set EXIT_READY: true ONLY when all 7 criteria are verified as met.
